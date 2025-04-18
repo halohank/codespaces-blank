@@ -1,0 +1,63 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
+from scipy.fft import fft, fftfreq
+
+A = 1.0
+t = np.linspace(0,10,1000)
+dt = t[1]-t[0] #時間取樣dt
+
+
+fig,axs = plt.subplots(3,1,figsize=(10,10))
+plt.subplots_adjust(bottom=0.3)
+
+init_b = 0.5
+init_w0 = 2 * np.pi
+
+def generate_data(b, w0):
+    wd = np.sqrt(max(w0**2 - b**2, 0.0001))  # 避免 sqrt 負數
+    x = A * np.exp(-b * t) * np.cos(wd * t)
+    energy = x**2
+    N = len(t)
+    xf = fftfreq(N, dt)[:N//2]
+    yf = fft(x)
+    yf_abs = 2.0/N * np.abs(yf[0:N//2])
+    return x, energy, xf, yf_abs
+x, energy, xf, yf_abs = generate_data(init_b, init_w0)
+line1, = axs[0].plot(t, x)
+axs[0].set_title("Damped Oscillation Waveform")
+axs[0].set_ylabel("Displacement")
+axs[0].grid(True)
+
+line2, = axs[1].plot(t, energy, 'g')
+axs[1].set_title("Energy Dissipation")
+axs[1].set_ylabel("Energy")
+axs[1].grid(True)
+
+line3, = axs[2].plot(xf, yf_abs, 'r')
+axs[2].set_title("FFT")
+axs[2].set_xlabel("Hz")
+axs[2].set_ylabel("Amplitude")
+axs[2].grid(True)
+axs[2].set_xlim(0, 10)
+
+# 加入 Slider
+axcolor = 'lightgoldenrodyellow'
+ax_b = plt.axes([0.15, 0.15, 0.65, 0.03], facecolor=axcolor)
+ax_w0 = plt.axes([0.15, 0.10, 0.65, 0.03], facecolor=axcolor)
+
+slider_b = Slider(ax_b, 'b', 0.01, 5.0, valinit=init_b, valstep=0.01)
+slider_w0 = Slider(ax_w0, 'w0', 0.1, 20.0, valinit=init_w0, valstep=0.1)
+
+def update(val):
+    b = slider_b.val
+    w0 = slider_w0.val
+    x, energy, xf, yf_abs = generate_data(b, w0)
+    line1.set_ydata(x)
+    line2.set_ydata(energy)
+    line3.set_xdata(xf)
+    line3.set_ydata(yf_abs)
+    fig.canvas.draw_idle()
+slider_b.on_changed(update)
+slider_w0.on_changed(update)
+plt.show()
