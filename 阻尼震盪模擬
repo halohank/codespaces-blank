@@ -1,63 +1,84 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-from scipy.fft import fft, fftfreq
-
-A = 1.0
-t = np.linspace(0,10,1000)
-dt = t[1]-t[0] #時間取樣dt
+from scipy.fftpack import fft
 
 
-fig,axs = plt.subplots(3,1,figsize=(10,10))
-plt.subplots_adjust(bottom=0.3)
+t = np.linspace(0, 10, 1000)
+x0 = 1.0
+v0 = 0.0
 
-init_b = 0.5
-init_w0 = 2 * np.pi
+def simulate_damped_oscillator(b, omega, x0=1.0, v0=0.0):
+    if b < omega:  # 欠阻尼
+        wd = np.sqrt(omega**2 - b**2)
+        A = x0
+        B = (v0 + b * x0) / wd
+        x = np.exp(-b * t) * (A * np.cos(wd * t) + B * np.sin(wd * t))
+    elif b == omega:
+        A = x0
+        B = v0 + b * x0
+        x = (A + B * t) * np.exp(-b * t)
+    else:  # 過阻尼
+        r1 = -b + np.sqrt(b**2 - omega**2)
+        r2 = -b - np.sqrt(b**2 - omega**2)
+        A = (v0 - r2 * x0) / (r1 - r2)
+        B = x0 - A
+        x = A * np.exp(r1 * t) + B * np.exp(r2 * t)
+    return x
 
-def generate_data(b, w0):
-    wd = np.sqrt(max(w0**2 - b**2, 0.0001))  # 避免 sqrt 負數
-    x = A * np.exp(-b * t) * np.cos(wd * t)
-    energy = x**2
-    N = len(t)
-    xf = fftfreq(N, dt)[:N//2]
-    yf = fft(x)
-    yf_abs = 2.0/N * np.abs(yf[0:N//2])
-    return x, energy, xf, yf_abs
-x, energy, xf, yf_abs = generate_data(init_b, init_w0)
-line1, = axs[0].plot(t, x)
-axs[0].set_title("Damped Oscillation Waveform")
-axs[0].set_ylabel("Displacement")
-axs[0].grid(True)
+init_b = 0.2
+init_omega = 2 * np.pi  # 1 Hz
 
-line2, = axs[1].plot(t, energy, 'g')
-axs[1].set_title("Energy Dissipation")
-axs[1].set_ylabel("Energy")
-axs[1].grid(True)
+fig, axs = plt.subplots(3, 1, figsize=(12, 10))
+plt.subplots_adjust(left=0.15, bottom=0.35)
 
-line3, = axs[2].plot(xf, yf_abs, 'r')
-axs[2].set_title("FFT")
+x = simulate_damped_oscillator(init_b, init_omega)
+v = np.gradient(x, t)
+ke = 0.5 * v**2
+pe = 0.5 * init_omega**2 * x**2
+energy = ke + pe
+fft_vals = np.abs(fft(x))[:len(t)//2]
+freq = np.fft.fftfreq(len(t), t[1]-t[0])[:len(t)//2]
+
+l1, = axs[0].plot(t, x, label="x(t)")
+axs[0].set_title("wave displacement")
+axs[0].set_ylabel("displacement")
+axs[0].grid()
+
+l2, = axs[1].plot(t, energy, label="E(t)", color='orange')
+axs[1].set_title("energy change")
+axs[1].set_ylabel("energy")
+axs[1].grid()
+
+l3, = axs[2].plot(freq, fft_vals, label="FFT(x)", color='green')
+axs[2].set_title("FS")
 axs[2].set_xlabel("Hz")
-axs[2].set_ylabel("Amplitude")
-axs[2].grid(True)
-axs[2].set_xlim(0, 10)
+axs[2].set_ylabel("amplitude")
+axs[2].grid()
 
-# 加入 Slider
-axcolor = 'lightgoldenrodyellow'
-ax_b = plt.axes([0.15, 0.15, 0.65, 0.03], facecolor=axcolor)
-ax_w0 = plt.axes([0.15, 0.10, 0.65, 0.03], facecolor=axcolor)
+ax_b = plt.axes([0.25, 0.2, 0.65, 0.03])
+ax_omega = plt.axes([0.25, 0.15, 0.65, 0.03])
 
-slider_b = Slider(ax_b, 'b', 0.01, 5.0, valinit=init_b, valstep=0.01)
-slider_w0 = Slider(ax_w0, 'w0', 0.1, 20.0, valinit=init_w0, valstep=0.1)
+slider_b = Slider(ax_b, '阻尼 b', 0.0, 10.0, valinit=init_b)
+slider_omega = Slider(ax_omega, '自然頻率 ω', 0.1, 10.0, valinit=init_omega)
 
 def update(val):
     b = slider_b.val
-    w0 = slider_w0.val
-    x, energy, xf, yf_abs = generate_data(b, w0)
-    line1.set_ydata(x)
-    line2.set_ydata(energy)
-    line3.set_xdata(xf)
-    line3.set_ydata(yf_abs)
+    omega = slider_omega.val
+    x = simulate_damped_oscillator(b, omega, x0, v0)
+    v = np.gradient(x, t)
+    ke = 0.5 * v**2
+    pe = 0.5 * omega**2 * x**2
+    energy = ke + pe
+    fft_vals = np.abs(fft(x))[:len(t)//2]
+
+    l1.set_ydata(x)
+    l2.set_ydata(energy)
+    l3.set_ydata(fft_vals)
     fig.canvas.draw_idle()
+
 slider_b.on_changed(update)
-slider_w0.on_changed(update)
+slider_omega.on_changed(update)
+
 plt.show()
+
